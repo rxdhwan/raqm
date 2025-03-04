@@ -13,6 +13,7 @@ const Register = () => {
     fullName: '',
   })
   const [loading, setLoading] = useState(false)
+  const [registered, setRegistered] = useState(false)
   const navigate = useNavigate()
   
   const handleChange = (e) => {
@@ -56,6 +57,7 @@ const Register = () => {
       
       if (existingPlate) {
         toast.error('This plate number is already registered')
+        setLoading(false)
         return
       }
       
@@ -83,8 +85,8 @@ const Register = () => {
         
         if (profileError) throw profileError
         
-        toast.success('Registration successful! Please verify your Mulkiya ID.')
-        navigate('/verify-mulkiya')
+        // Show success message and registration confirmation screen
+        setRegistered(true)
       }
     } catch (error) {
       toast.error(error.message || 'Error during registration')
@@ -92,6 +94,45 @@ const Register = () => {
     } finally {
       setLoading(false)
     }
+  }
+  
+  // If registration is successful, show confirmation screen
+  if (registered) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 py-8">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-10">
+            <h1 className="text-4xl font-bold text-primary mb-2">RAQM</h1>
+            <p className="text-gray-600">Join the UAE's car enthusiast community</p>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow-md p-8 text-center">
+            <div className="text-green-500 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            
+            <h2 className="text-2xl font-bold mb-4">Registration Successful!</h2>
+            
+            <p className="mb-6 text-gray-600">
+              We've sent a verification email to <strong>{formData.email}</strong>. 
+              Please check your inbox and click the verification link to activate your account.
+            </p>
+            
+            <Link to="/login" className="btn btn-primary w-full block">
+              Go to Login
+            </Link>
+          </div>
+          
+          <div className="mt-6 text-center">
+            <Link to="/landing" className="text-gray-500 hover:text-primary">
+              ← Back to Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
   
   return (

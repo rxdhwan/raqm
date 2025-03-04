@@ -13,6 +13,44 @@ const PostForm = () => {
   const fileInputRef = useRef(null)
   const { user, addPost } = useStore()
   
+  // Create the required buckets if they don't exist
+  const createBucketIfNotExists = async (bucketName) => {
+    try {
+      console.log(`Checking if bucket '${bucketName}' exists...`)
+      
+      // Check if bucket exists
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets()
+      
+      if (listError) {
+        console.error(`Error listing buckets:`, listError)
+        return false
+      }
+      
+      console.log(`Found ${buckets.length} buckets:`, buckets.map(b => b.name))
+      const bucketExists = buckets.some(bucket => bucket.name === bucketName)
+      
+      if (!bucketExists) {
+        console.log(`Bucket '${bucketName}' does not exist, creating it...`)
+        // Create the bucket
+        const { error } = await supabase.storage.createBucket(bucketName, {
+          public: true
+        })
+        
+        if (error) {
+          console.error(`Error creating bucket ${bucketName}:`, error)
+          return false
+        }
+        console.log(`Bucket ${bucketName} created successfully`)
+      } else {
+        console.log(`Bucket '${bucketName}' already exists`)
+      }
+      return true
+    } catch (error) {
+      console.error(`Error checking/creating bucket ${bucketName}:`, error)
+      return false
+    }
+  }
+  
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
@@ -50,19 +88,27 @@ const PostForm = () => {
       
       // Upload image if exists
       if (image) {
+        // Create bucket if it doesn't exist
+        const bucketName = 'post_images'
+        const bucketCreated = await createBucketIfNotExists(bucketName)
+        
+        if (!bucketCreated) {
+          throw new Error('Failed to create or access storage bucket')
+        }
+        
         const fileExt = image.name.split('.').pop()
         const fileName = `${uuidv4()}.${fileExt}`
         const filePath = `${user.id}/${fileName}`
         
         const { error: uploadError } = await supabase.storage
-          .from('post_images')
+          .from(bucketName)
           .upload(filePath, image)
         
         if (uploadError) throw uploadError
         
         // Get public URL
         const { data } = supabase.storage
-          .from('post_images')
+          .from(bucketName)
           .getPublicUrl(filePath)
         
         imageUrl = data.publicUrl
@@ -104,7 +150,7 @@ const PostForm = () => {
       toast.success('Post created successfully!')
     } catch (error) {
       console.error('Error creating post:', error)
-      toast.error('Failed to create post')
+      toast.error(error.message || 'Failed to create post')
     } finally {
       setLoading(false)
     }

@@ -22,7 +22,7 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
-  const { setUser, user } = useStore()
+  const { setUser, user, clearStories } = useStore()
   const [loading, setLoading] = useState(true)
   const [sessionChecked, setSessionChecked] = useState(false)
   const navigate = useNavigate()
@@ -90,6 +90,8 @@ function App() {
         } else {
           console.log("No session, clearing user");
           setUser(null);
+          // Clear stories when no user is logged in
+          clearStories();
         }
       } catch (error) {
         console.error("Unexpected error during session retrieval:", error);
@@ -140,6 +142,9 @@ function App() {
           } else if (event === 'SIGNED_OUT') {
             console.log("User signed out, clearing user");
             setUser(null);
+            // Clear stories when user signs out
+            clearStories();
+            navigate('/landing');
           } else if (event === 'TOKEN_REFRESHED') {
             console.log("Token refreshed");
             // The session has been refreshed, no need to do anything
@@ -154,7 +159,7 @@ function App() {
       clearTimeout(loadingTimeout);
       subscription?.unsubscribe();
     };
-  }, [setUser, navigate]);
+  }, [setUser, navigate, clearStories]);
 
   // Determine which routes to render
   const renderRoutes = () => {
@@ -173,7 +178,11 @@ function App() {
         <Route path="/landing" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/verify-mulkiya" element={<MulkiyaVerification />} />
+        <Route path="/verify-mulkiya" element={
+          <ProtectedRoute>
+            <MulkiyaVerification />
+          </ProtectedRoute>
+        } />
 
         <Route
           path="/"
@@ -191,9 +200,18 @@ function App() {
           <Route path="profile/:plateNumber" element={<Profile />} />
           <Route path="chat" element={<Chat />} />
           <Route path="chat/:id" element={<ChatRoom />} />
-          <Route path="stories" element={<Stories />} />
           <Route path="search" element={<Search />} />
         </Route>
+
+        {/* Stories route outside of Layout to be fullscreen */}
+        <Route 
+          path="/stories" 
+          element={
+            <ProtectedRoute>
+              <Stories />
+            </ProtectedRoute>
+          } 
+        />
 
         <Route path="*" element={<NotFound />} />
       </Routes>

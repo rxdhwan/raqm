@@ -15,6 +15,7 @@ export const useStore = create((set) => ({
   // Stories state
   stories: [],
   setStories: (stories) => set({ stories }),
+  clearStories: () => set({ stories: [] }),
   
   // Chat state
   chats: [],

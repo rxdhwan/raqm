@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useStore } from '../store'
-import { FaCamera, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa'
+import { FaCamera, FaTimes, FaChevronLeft, FaChevronRight, FaPlus } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -15,14 +15,49 @@ const Stories = () => {
   const [imagePreview, setImagePreview] = useState(null)
   const [caption, setCaption] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fetchingStories, setFetchingStories] = useState(true)
   const fileInputRef = useRef(null)
   const progressRef = useRef(null)
   const timeoutRef = useRef(null)
   const navigate = useNavigate()
   
+  // Create the required buckets if they don't exist
+  const createBucketIfNotExists = async (bucketName) => {
+    try {
+      // Check if bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets()
+      const bucketExists = buckets.some(bucket => bucket.name === bucketName)
+      
+      if (!bucketExists) {
+        // Create the bucket
+        const { error } = await supabase.storage.createBucket(bucketName, {
+          public: true
+        })
+        
+        if (error) {
+          console.error(`Error creating bucket ${bucketName}:`, error)
+          return false
+        }
+        console.log(`Bucket ${bucketName} created successfully`)
+      }
+      return true
+    } catch (error) {
+      console.error(`Error checking/creating bucket ${bucketName}:`, error)
+      return false
+    }
+  }
+  
   useEffect(() => {
     const fetchStories = async () => {
       try {
+        if (!user || !user.id) {
+          setFetchingStories(false)
+          return
+        }
+        
+        setFetchingStories(true)
+        console.log("Fetching stories for user:", user.id)
+        
         // Get stories from users the current user follows + their own stories
         const { data: followingData } = await supabase
           .from('follows')
@@ -31,6 +66,8 @@ const Stories = () => {
         
         const followingIds = followingData?.map(item => item.following_id) || []
         followingIds.push(user.id) // Include user's own stories
+        
+        console.log("Following IDs + user:", followingIds)
         
         // Get stories from the last 24 hours
         const oneDayAgo = new Date()
@@ -51,10 +88,15 @@ const Stories = () => {
           .gte('created_at', oneDayAgo.toISOString())
           .order('created_at', { ascending: false })
         
-        if (error) throw error
+        if (error) {
+          console.error("Error fetching stories:", error)
+          throw error
+        }
+        
+        console.log("Stories fetched:", data?.length || 0)
         
         // Group stories by user
-        const groupedStories = data.reduce((acc, story) => {
+        const groupedStories = (data || []).reduce((acc, story) => {
           const userId = story.user_id
           if (!acc[userId]) {
             acc[userId] = {
@@ -67,9 +109,11 @@ const Stories = () => {
         }, {})
         
         const storyGroups = Object.values(groupedStories)
+        console.log("Story groups:", storyGroups.length)
+        
         setStories(storyGroups)
         
-        // Set active story if not already set
+        // Set active story if not already set and there are stories
         if (storyGroups.length > 0 && !activeStoryGroup) {
           setActiveStoryGroup(storyGroups[0])
           setActiveStoryIndex(0)
@@ -77,6 +121,9 @@ const Stories = () => {
         }
       } catch (error) {
         console.error('Error fetching stories:', error)
+        toast.error('Failed to load stories')
+      } finally {
+        setFetchingStories(false)
       }
     }
     
@@ -87,10 +134,15 @@ const Stories = () => {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [user.id])
+  }, [user, setStories])
   
   const startProgressBar = () => {
     if (progressRef.current) {
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+      
       progressRef.current.style.width = '0%'
       progressRef.current.style.transition = 'none'
       
@@ -184,20 +236,28 @@ const Stories = () => {
     try {
       setLoading(true)
       
+      // Create the bucket if it doesn't exist
+      const bucketName = 'story_images' // Match the bucket name in schema.sql
+      const bucketCreated = await createBucketIfNotExists(bucketName)
+      
+      if (!bucketCreated) {
+        throw new Error('Failed to create or access storage bucket')
+      }
+      
       // Upload image
       const fileExt = image.name.split('.').pop()
       const fileName = `${uuidv4()}.${fileExt}`
       const filePath = `${user.id}/${fileName}`
       
       const { error: uploadError } = await supabase.storage
-        .from('story_images')
+        .from(bucketName)
         .upload(filePath, image)
       
       if (uploadError) throw uploadError
       
       // Get public URL
       const { data } = supabase.storage
-        .from('story_images')
+        .from(bucketName)
         .getPublicUrl(filePath)
       
       const imageUrl = data.publicUrl
@@ -215,57 +275,82 @@ const Stories = () => {
       if (error) throw error
       
       toast.success('Story created successfully!')
+      
+      // Reset form
       setIsCreating(false)
       setImage(null)
       setImagePreview(null)
       setCaption('')
       
-      // Refresh stories
-      const { data: newStory } = await supabase
-        .from('stories')
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            plate_number,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-      
-      // Update stories state
-      const userStoryGroup = stories.find(group => group.user.id === user.id)
-      
-      if (userStoryGroup) {
-        // Add to existing group
-        userStoryGroup.stories.unshift(newStory)
-        setStories([...stories])
-      } else {
-        // Create new group
-        const newGroup = {
-          user: newStory.profiles,
-          stories: [newStory]
+      // Fetch all stories again to ensure we have the latest data
+      try {
+        // Get stories from users the current user follows + their own stories
+        const { data: followingData } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id)
+        
+        const followingIds = followingData?.map(item => item.following_id) || []
+        followingIds.push(user.id) // Include user's own stories
+        
+        // Get stories from the last 24 hours
+        const oneDayAgo = new Date()
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1)
+        
+        const { data: refreshedStories, error: refreshError } = await supabase
+          .from('stories')
+          .select(`
+            *,
+            profiles:user_id (
+              id,
+              plate_number,
+              full_name,
+              avatar_url
+            )
+          `)
+          .in('user_id', followingIds)
+          .gte('created_at', oneDayAgo.toISOString())
+          .order('created_at', { ascending: false })
+        
+        if (refreshError) throw refreshError
+        
+        // Group stories by user
+        const groupedStories = (refreshedStories || []).reduce((acc, story) => {
+          const userId = story.user_id
+          if (!acc[userId]) {
+            acc[userId] = {
+              user: story.profiles,
+              stories: []
+            }
+          }
+          acc[userId].stories.push(story)
+          return acc
+        }, {})
+        
+        const storyGroups = Object.values(groupedStories)
+        setStories(storyGroups)
+        
+        // Find the user's story group
+        const userStoryGroup = storyGroups.find(group => group.user.id === user.id)
+        if (userStoryGroup) {
+          setActiveStoryGroup(userStoryGroup)
+          setActiveStoryIndex(0)
+          startProgressBar()
         }
-        setStories([newGroup, ...stories])
+      } catch (refreshError) {
+        console.error('Error refreshing stories:', refreshError)
+        // If refresh fails, navigate home
+        navigate('/')
       }
-      
-      // Set active story to the new one
-      const updatedUserGroup = stories.find(group => group.user.id === user.id) || newGroup
-      setActiveStoryGroup(updatedUserGroup)
-      setActiveStoryIndex(0)
-      startProgressBar()
     } catch (error) {
       console.error('Error creating story:', error)
-      toast.error('Failed to create story')
+      toast.error(error.message || 'Failed to create story')
     } finally {
       setLoading(false)
     }
   }
   
+  // Always show create story screen if that's what the user wants
   if (isCreating) {
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col">
@@ -338,6 +423,16 @@ const Stories = () => {
     )
   }
   
+  if (fetchingStories) {
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-4"></div>
+        <p className="text-white">Loading stories...</p>
+      </div>
+    )
+  }
+  
+  // If there are no stories or we're not viewing a story, show the create story option
   if (!activeStoryGroup || stories.length === 0) {
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center">
@@ -352,6 +447,7 @@ const Stories = () => {
     )
   }
   
+  // We have stories to display
   const currentStory = activeStoryGroup.stories[activeStoryIndex]
   
   return (
@@ -383,12 +479,23 @@ const Stories = () => {
             </div>
           </div>
           
-          <button 
-            onClick={() => navigate('/')}
-            className="text-white"
-          >
-            <FaTimes size={20} />
-          </button>
+          <div className="flex items-center">
+            {/* Add story button */}
+            <button 
+              onClick={() => setIsCreating(true)}
+              className="text-white mr-4"
+            >
+              <FaPlus size={20} />
+            </button>
+            
+            {/* Close button */}
+            <button 
+              onClick={() => navigate('/')}
+              className="text-white"
+            >
+              <FaTimes size={20} />
+            </button>
+          </div>
         </div>
         
         {/* Progress bars */}
@@ -415,13 +522,23 @@ const Stories = () => {
       
       {/* Story content */}
       <div className="flex-1 relative">
-        <img 
-          src={currentStory.image_url} 
-          alt="Story" 
-          className="w-full h-full object-contain"
-        />
+        {currentStory && currentStory.image_url ? (
+          <img 
+            src={currentStory.image_url} 
+            alt="Story" 
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = 'https://via.placeholder.com/400x800?text=Image+Not+Available';
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+            <p className="text-white">Image not available</p>
+          </div>
+        )}
         
-        {currentStory.caption && (
+        {currentStory && currentStory.caption && (
           <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-50 text-white p-3 rounded-lg">
             {currentStory.caption}
           </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useStore } from '../store'
 import { FaPlus } from 'react-icons/fa'
@@ -7,10 +7,13 @@ import { FaPlus } from 'react-icons/fa'
 const StoriesBar = () => {
   const { user, stories, setStories } = useStore()
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
   
   useEffect(() => {
     const fetchStories = async () => {
       try {
+        if (!user || !user.id) return;
+        
         setLoading(true)
         
         // Get stories from users the current user follows + their own stories
@@ -44,7 +47,7 @@ const StoriesBar = () => {
         if (error) throw error
         
         // Group stories by user
-        const groupedStories = data.reduce((acc, story) => {
+        const groupedStories = (data || []).reduce((acc, story) => {
           const userId = story.user_id
           if (!acc[userId]) {
             acc[userId] = {
@@ -65,7 +68,12 @@ const StoriesBar = () => {
     }
     
     fetchStories()
-  }, [user.id])
+  }, [user, setStories])
+  
+  const handleAddStory = () => {
+    // Navigate to stories page and set isCreating to true
+    navigate('/stories', { state: { isCreating: true } });
+  }
   
   if (loading) {
     return (
@@ -83,18 +91,21 @@ const StoriesBar = () => {
   return (
     <div className="flex overflow-x-auto py-4 space-x-4 no-scrollbar">
       {/* Add story button */}
-      <Link to="/stories/create" className="flex-shrink-0 w-16">
+      <div 
+        onClick={handleAddStory}
+        className="flex-shrink-0 w-16 cursor-pointer"
+      >
         <div className="h-16 w-16 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
           <FaPlus className="text-gray-400" />
         </div>
         <p className="text-xs text-center mt-1 text-gray-500">Add Story</p>
-      </Link>
+      </div>
       
       {/* Stories */}
       {stories.map((storyGroup) => (
         <Link 
           key={storyGroup.user.id} 
-          to={`/stories/view/${storyGroup.user.id}`}
+          to="/stories"
           className="flex-shrink-0 w-16"
         >
           <div className="h-16 w-16 rounded-full border-2 border-primary p-0.5">
@@ -104,6 +115,10 @@ const StoriesBar = () => {
                   src={storyGroup.user.avatar_url} 
                   alt={storyGroup.user.plate_number} 
                   className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://ui-avatars.com/api/?name=${storyGroup.user.plate_number}&background=1E40AF&color=fff`;
+                  }}
                 />
               ) : (
                 <div className="h-full w-full flex items-center justify-center bg-primary text-white font-bold">

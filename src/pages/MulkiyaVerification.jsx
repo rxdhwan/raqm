@@ -27,7 +27,12 @@ const MulkiyaVerification = () => {
         setHasWebcam(false)
         setUseWebcam(false)
       })
-  }, [])
+      
+    // If user data is loaded, set the plate number
+    if (user?.plate_number) {
+      setPlateNumber(user.plate_number)
+    }
+  }, [user])
   
   const captureImage = () => {
     if (webcamRef.current) {
@@ -63,6 +68,32 @@ const MulkiyaVerification = () => {
     return user?.plate_number || ''
   }
   
+  // Create the required buckets if they don't exist
+  const createBucketIfNotExists = async (bucketName) => {
+    try {
+      // Check if bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets()
+      const bucketExists = buckets.some(bucket => bucket.name === bucketName)
+      
+      if (!bucketExists) {
+        // Create the bucket
+        const { error } = await supabase.storage.createBucket(bucketName, {
+          public: true
+        })
+        
+        if (error) {
+          console.error(`Error creating bucket ${bucketName}:`, error)
+          return false
+        }
+        console.log(`Bucket ${bucketName} created successfully`)
+      }
+      return true
+    } catch (error) {
+      console.error(`Error checking/creating bucket ${bucketName}:`, error)
+      return false
+    }
+  }
+  
   const verifyMulkiya = async () => {
     if (!user) {
       toast.error('User data not loaded. Please try again.');
@@ -80,11 +111,13 @@ const MulkiyaVerification = () => {
       // Extract plate number from image (simulated)
       const extractedPlateNumber = extractPlateNumber(capturedImage)
       
-      // In a real app, you would:
-      // 1. Upload the image to storage
-      // 2. Process it with OCR to verify the plate number
-      // 3. Match it with the user's registered plate number
-      // 4. Potentially have an admin review process
+      // Create the bucket if it doesn't exist
+      const bucketName = 'mulkiya-verifications'
+      const bucketCreated = await createBucketIfNotExists(bucketName)
+      
+      if (!bucketCreated) {
+        throw new Error('Failed to create or access storage bucket')
+      }
       
       // Upload image to Supabase Storage
       const fileName = `mulkiya_${user.id}_${uuidv4()}.jpg`
@@ -92,9 +125,6 @@ const MulkiyaVerification = () => {
       // Convert base64 to blob
       const base64Data = capturedImage.split(',')[1]
       const blob = await fetch(`data:image/jpeg;base64,${base64Data}`).then(res => res.blob())
-      
-      // **IMPORTANT: Make sure the bucket name matches your Supabase storage bucket name**
-      const bucketName = 'mulkiya-verifications'; // Corrected bucket name
       
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
@@ -141,19 +171,19 @@ const MulkiyaVerification = () => {
     }
   }
   
-  // **CONDITIONAL RENDERING**
+  // If user data is not loaded yet, show loading state
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 py-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-primary mb-2">RAQM</h1>
-            <p className="text-gray-600">Waiting for Email Confirmation</p>
+            <p className="text-gray-600">Verifying your Mulkiya ID</p>
           </div>
           <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
           </div>
-          <p className="mt-4 text-center text-gray-500">Reload the page after verifying email..</p>
+          <p className="mt-4 text-center text-gray-500">Loading user data...</p>
         </div>
       </div>
     );
