@@ -148,12 +148,12 @@ const MulkiyaVerification = () => {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-primary mb-2">RAQM</h1>
-            <p className="text-gray-600">Verifying your Mulkiya ID</p>
+            <p className="text-gray-600">Waiting for Email Confirmation</p>
           </div>
           <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
           </div>
-          <p className="mt-4 text-center text-gray-500">Loading user data...</p>
+          <p className="mt-4 text-center text-gray-500">Reload the page after verifying email..</p>
         </div>
       </div>
     );

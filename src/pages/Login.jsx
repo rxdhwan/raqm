@@ -40,6 +40,15 @@ const Login = () => {
       if (data.user) {
         // User is logged in, profile will be fetched in App.jsx
         toast.success('Login successful!')
+        
+        // Check if email is verified
+        if (!data.user.email_confirmed_at) {
+          toast.error('Please verify your email before logging in')
+          await supabase.auth.signOut()
+          setUser(null)
+          return
+        }
+        
         navigate('/')
       }
     } catch (error) {

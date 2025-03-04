@@ -9,7 +9,8 @@ const ProtectedRoute = ({ children }) => {
   }
   
   // Check if user has verified their Mulkiya
-  if (!user.is_mulkiya_verified) {
+  // Only redirect to Mulkiya verification if they're not already on that page
+  if (!user.is_mulkiya_verified && window.location.pathname !== '/verify-mulkiya') {
     return <Navigate to="/verify-mulkiya" replace />
   }
   
