@@ -118,7 +118,7 @@ const Register = () => {
                   id="fullName"
                   name="fullName"
                   type="text"
-                  className="input pl-10"
+                  className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-gray-800"
                   placeholder="Your full name"
                   value={formData.fullName}
                   onChange={handleChange}
@@ -138,7 +138,7 @@ const Register = () => {
                   id="email"
                   name="email"
                   type="email"
-                  className="input pl-10"
+                  className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-gray-800"
                   placeholder="Your email"
                   value={formData.email}
                   onChange={handleChange}
@@ -158,7 +158,7 @@ const Register = () => {
                   id="plateNumber"
                   name="plateNumber"
                   type="text"
-                  className="input pl-10"
+                  className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-gray-800"
                   placeholder="e.g., DUBAI A 12345"
                   value={formData.plateNumber}
                   onChange={handleChange}
@@ -181,7 +181,7 @@ const Register = () => {
                   id="password"
                   name="password"
                   type="password"
-                  className="input pl-10"
+                  className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-gray-800"
                   placeholder="Create a password"
                   value={formData.password}
                   onChange={handleChange}
@@ -201,7 +201,7 @@ const Register = () => {
                   id="confirmPassword"
                   name="confirmPassword"
                   type="password"
-                  className="input pl-10"
+                  className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-gray-800"
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
@@ -226,6 +226,12 @@ const Register = () => {
               </Link>
             </p>
           </div>
+        </div>
+        
+        <div className="mt-6 text-center">
+          <Link to="/landing" className="text-gray-500 hover:text-primary">
+            ← Back to Home
+          </Link>
         </div>
       </div>
     </div>

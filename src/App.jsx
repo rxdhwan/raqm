@@ -5,6 +5,7 @@ import { useStore } from './store'
 import toast from 'react-hot-toast'
 
 // Pages
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Feed from './pages/Feed'
@@ -169,6 +170,7 @@ function App() {
     // Otherwise, render the routes
     return (
       <Routes>
+        <Route path="/landing" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-mulkiya" element={<MulkiyaVerification />} />
@@ -176,9 +178,13 @@ function App() {
         <Route
           path="/"
           element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
+            user ? (
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            ) : (
+              <Navigate to="/landing" replace />
+            )
           }
         >
           <Route index element={<Feed />} />
